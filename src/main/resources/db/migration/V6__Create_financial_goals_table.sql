@@ -1,0 +1,15 @@
+-- SQL Migration: db/migration/V6__Create_financial_goals_table.sql
+CREATE TABLE financial_goals (
+id BIGINT PRIMARY KEY AUTO_INCREMENT,
+user_id BIGINT NOT NULL,
+name VARCHAR(100) NOT NULL,
+description TEXT,
+target_amount DECIMAL(15,2) NOT NULL,
+current_amount DECIMAL(15,2) DEFAULT 0.00,
+target_date DATE,
+priority ENUM('LOW', 'MEDIUM', 'HIGH') DEFAULT 'MEDIUM',
+status ENUM('ACTIVE', 'COMPLETED', 'PAUSED') DEFAULT 'ACTIVE',
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
