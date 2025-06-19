@@ -8,23 +8,28 @@ import com.financetracker.exception.BusinessLogicException;
 import com.financetracker.exception.ResourceNotFoundException;
 import com.financetracker.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.stream.Collectors;
-
 @Service
 @RequiredArgsConstructor
 public class CategoryService {
 
     private final CategoryRepository categoryRepository;
 
+    // Cache categories list per user
+    @Cacheable(value = "categoriesByUser", key = "#user.id")
     public List<CategoryResponse> listCategories(User user) {
         return categoryRepository.findByUser(user).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
+    // Evict categories list cache after creating a new category
+    @CacheEvict(value = "categoriesByUser", key = "#user.id")
     public CategoryResponse createCategory(CategoryRequest req, User user) {
         if (categoryRepository.existsByUserAndNameAndType(user, req.getName(), req.getType())) {
             throw new BusinessLogicException("Category already exists");
@@ -41,6 +46,8 @@ public class CategoryService {
         return toResponse(categoryRepository.save(cat));
     }
 
+    // Evict categories list cache after updating a category
+    @CacheEvict(value = "categoriesByUser", key = "#user.id")
     public CategoryResponse updateCategory(Long id, CategoryRequest req, User user) {
         Category cat = categoryRepository.findById(id)
                 .filter(c -> c.getUser().getId().equals(user.getId()))
@@ -60,6 +67,8 @@ public class CategoryService {
         return toResponse(categoryRepository.save(cat));
     }
 
+    // Evict categories list cache after soft deleting a category
+    @CacheEvict(value = "categoriesByUser", key = "#user.id")
     public void deleteCategory(Long id, User user) {
         Category cat = categoryRepository.findById(id)
                 .filter(c -> c.getUser().getId().equals(user.getId()))
@@ -81,3 +90,4 @@ public class CategoryService {
         return resp;
     }
 }
+

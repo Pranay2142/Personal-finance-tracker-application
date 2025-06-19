@@ -7,12 +7,13 @@ import com.financetracker.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
-
 @Service
 @RequiredArgsConstructor
 public class ReportService {
@@ -20,6 +21,7 @@ public class ReportService {
     private final TransactionRepository transactionRepository;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "reportSummary", key = "#user.id")
     public AnalyticsResponse getSummary(User user) {
         List<Transaction> txns = transactionRepository.findByUser(user, null).getContent();
 
@@ -38,6 +40,7 @@ public class ReportService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "reportCategoryBreakdown", key = "#user.id")
     public AnalyticsResponse getCategoryBreakdown(User user) {
         List<Transaction> txns = transactionRepository.findByUser(user, null).getContent();
 
@@ -53,6 +56,7 @@ public class ReportService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "reportCashFlow", key = "#user.id")
     public AnalyticsResponse getCashFlow(User user) {
         List<Transaction> txns = transactionRepository.findByUser(user, null).getContent();
 
@@ -71,6 +75,7 @@ public class ReportService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "reportSpendingTrends", key = "#user.id")
     public AnalyticsResponse getSpendingTrends(User user) {
         List<Transaction> txns = transactionRepository.findByUser(user, null).getContent();
 
@@ -88,3 +93,4 @@ public class ReportService {
         return resp;
     }
 }
+

@@ -2,12 +2,16 @@ package com.financetracker.dto.request;
 
 import com.financetracker.entity.Budget.BudgetPeriod;
 import jakarta.validation.constraints.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class BudgetRequest {
 
     @NotBlank

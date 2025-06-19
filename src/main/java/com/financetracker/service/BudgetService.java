@@ -6,13 +6,15 @@ import com.financetracker.entity.*;
 import com.financetracker.exception.*;
 import com.financetracker.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
-
 @Service
 @RequiredArgsConstructor
 public class BudgetService {
@@ -22,6 +24,7 @@ public class BudgetService {
     private final TransactionRepository transactionRepository;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "budgetsByUser", key = "#user.id")
     public List<BudgetSummaryResponse> listBudgets(User user) {
         return budgetRepository.findByUserAndIsActiveTrue(user).stream()
                 .map(b -> mapToSummary(b, user))
@@ -29,12 +32,14 @@ public class BudgetService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "budgetProgress", key = "#id")
     public BudgetSummaryResponse getBudgetProgress(Long id, User user) {
         Budget budget = findActiveBudgetById(id, user);
         return mapToSummary(budget, user);
     }
 
     @Transactional
+    @CacheEvict(value = "budgetsByUser", key = "#user.id")
     public BudgetSummaryResponse createBudget(BudgetRequest req, User user) {
         Category cat = categoryRepository.findById(req.getCategoryId())
                 .filter(c -> c.getUser().getId().equals(user.getId()))
@@ -50,10 +55,15 @@ public class BudgetService {
         budget.setEndDate(req.getEndDate());
         budget.setIsActive(true);
 
-        return mapToSummary(budgetRepository.save(budget), user);
+        Budget saved = budgetRepository.save(budget);
+        return mapToSummary(saved, user);
     }
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "budgetsByUser", key = "#user.id"),
+            @CacheEvict(value = "budgetProgress", key = "#id")
+    })
     public BudgetSummaryResponse updateBudget(Long id, BudgetRequest req, User user) {
         Budget budget = findActiveBudgetById(id, user);
 
@@ -68,10 +78,12 @@ public class BudgetService {
         budget.setStartDate(req.getStartDate());
         budget.setEndDate(req.getEndDate());
 
-        return mapToSummary(budgetRepository.save(budget), user);
+        Budget updated = budgetRepository.save(budget);
+        return mapToSummary(updated, user);
     }
 
     @Transactional
+    @CacheEvict(value = "budgetsByUser", key = "#user.id")
     public void deleteBudget(Long id, User user) {
         Budget budget = findActiveBudgetById(id, user);
         budget.setIsActive(false);

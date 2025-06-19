@@ -2,11 +2,15 @@ package com.financetracker.dto.request;
 
 import com.financetracker.entity.Account.AccountType;
 import jakarta.validation.constraints.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class AccountRequest {
     @NotBlank
     private String name;

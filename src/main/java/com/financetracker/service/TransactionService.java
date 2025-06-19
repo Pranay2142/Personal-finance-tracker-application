@@ -6,9 +6,12 @@ import com.financetracker.entity.*;
 import com.financetracker.exception.ResourceNotFoundException;
 import com.financetracker.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Service
 public class TransactionService {
@@ -26,12 +29,14 @@ public class TransactionService {
     private RecurringTransactionRepository recurringTransactionRepository;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "transactionsByUserPage", key = "#user.id + '-' + #pageable.pageNumber + '-' + #pageable.pageSize")
     public Page<TransactionResponse> getAllTransactions(User user, Pageable pageable) {
         return transactionRepository.findByUser(user, pageable)
                 .map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "transactionById", key = "#id")
     public TransactionResponse getTransactionById(Long id, User user) {
         Transaction txn = transactionRepository.findById(id)
                 .filter(t -> t.getUser().getId().equals(user.getId()))
@@ -40,6 +45,14 @@ public class TransactionService {
     }
 
     @Transactional
+    @CacheEvict(value = {
+            "transactionsByUserPage",
+            "transactionById",
+            "reportSummary",
+            "reportCategoryBreakdown",
+            "reportCashFlow",
+            "reportSpendingTrends"
+    }, key = "#user.id")
     public TransactionResponse createTransaction(TransactionRequest req, User user) {
         Account acct = accountRepository.findById(req.getAccountId())
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
@@ -67,6 +80,14 @@ public class TransactionService {
     }
 
     @Transactional
+    @CacheEvict(value = {
+            "transactionsByUserPage",
+            "transactionById",
+            "reportSummary",
+            "reportCategoryBreakdown",
+            "reportCashFlow",
+            "reportSpendingTrends"
+    }, key = "#user.id")
     public TransactionResponse updateTransaction(Long id, TransactionRequest req, User user) {
         Transaction txn = transactionRepository.findById(id)
                 .filter(t -> t.getUser().getId().equals(user.getId()))
@@ -96,6 +117,14 @@ public class TransactionService {
     }
 
     @Transactional
+    @CacheEvict(value = {
+            "transactionsByUserPage",
+            "transactionById",
+            "reportSummary",
+            "reportCategoryBreakdown",
+            "reportCashFlow",
+            "reportSpendingTrends"
+    }, key = "#user.id")
     public void deleteTransaction(Long id, User user) {
         Transaction txn = transactionRepository.findById(id)
                 .filter(t -> t.getUser().getId().equals(user.getId()))
@@ -116,3 +145,4 @@ public class TransactionService {
         return dto;
     }
 }
+

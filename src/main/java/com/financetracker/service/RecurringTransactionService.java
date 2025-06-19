@@ -8,10 +8,11 @@ import com.financetracker.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 
 import java.util.List;
 import java.util.stream.Collectors;
-
 @Service
 @RequiredArgsConstructor
 public class RecurringTransactionService {
@@ -21,7 +22,9 @@ public class RecurringTransactionService {
     private final AccountRepository accountRepository;
     private final CategoryRepository categoryRepository;
 
+    // Cache active recurring transactions per userId
     @Transactional(readOnly = true)
+    @Cacheable(value = "activeRecurringTransactionsByUser", key = "#userId")
     public List<RecurringTransactionResponse> getActiveRecurringTransactionsByUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -30,7 +33,9 @@ public class RecurringTransactionService {
                 .collect(Collectors.toList());
     }
 
+    // Evict cache after creating a new recurring transaction for that user
     @Transactional
+    @CacheEvict(value = "activeRecurringTransactionsByUser", key = "#req.userId")
     public RecurringTransactionResponse createRecurringTransaction(RecurringTransactionRequest req) {
         User user = userRepository.findById(req.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -57,7 +62,9 @@ public class RecurringTransactionService {
         return toResponse(rt);
     }
 
+    // Evict cache after updating a recurring transaction (use userId from updated entity)
     @Transactional
+    @CacheEvict(value = "activeRecurringTransactionsByUser", key = "#req.userId")
     public RecurringTransactionResponse updateRecurringTransaction(Long id, RecurringTransactionRequest req) {
         RecurringTransaction rt = recurringTransactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Recurring transaction not found"));
@@ -86,10 +93,13 @@ public class RecurringTransactionService {
         return toResponse(rt);
     }
 
+    // Evict cache after deleting a recurring transaction (use userId of deleted entity)
     @Transactional
+    @CacheEvict(value = "activeRecurringTransactionsByUser", key = "#result")
     public void deleteRecurringTransaction(Long id) {
         RecurringTransaction rt = recurringTransactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Recurring transaction not found"));
+        Long userId = rt.getUser().getId();
         recurringTransactionRepository.delete(rt);
     }
 
@@ -112,3 +122,4 @@ public class RecurringTransactionService {
         return resp;
     }
 }
+

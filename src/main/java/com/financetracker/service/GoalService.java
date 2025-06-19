@@ -7,6 +7,8 @@ import com.financetracker.entity.User;
 import com.financetracker.exception.ResourceNotFoundException;
 import com.financetracker.repository.FinancialGoalRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,7 @@ public class GoalService {
     private final FinancialGoalRepository goalRepo;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "goalsByUser", key = "#user.id")
     public List<GoalResponse> listGoals(User user) {
         return goalRepo.findByUser(user).stream()
                 .map(this::toResponse)
@@ -28,6 +31,7 @@ public class GoalService {
     }
 
     @Transactional
+    @CacheEvict(value = "goalsByUser", key = "#user.id")
     public GoalResponse createGoal(GoalRequest req, User user) {
         FinancialGoal g = new FinancialGoal();
         g.setUser(user);
@@ -42,6 +46,7 @@ public class GoalService {
     }
 
     @Transactional
+    @CacheEvict(value = "goalsByUser", key = "#user.id")
     public GoalResponse updateGoal(Long id, GoalRequest req, User user) {
         FinancialGoal g = getById(id, user);
         g.setName(req.getName());
@@ -54,6 +59,7 @@ public class GoalService {
     }
 
     @Transactional
+    @CacheEvict(value = "goalsByUser", key = "#user.id")
     public GoalResponse contribute(Long id, BigDecimal amount, User user) {
         FinancialGoal g = getById(id, user);
         g.setCurrentAmount(g.getCurrentAmount().add(amount));
@@ -84,3 +90,4 @@ public class GoalService {
         return r;
     }
 }
+
