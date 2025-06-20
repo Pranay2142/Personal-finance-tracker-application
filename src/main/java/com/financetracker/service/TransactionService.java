@@ -5,6 +5,7 @@ import com.financetracker.dto.response.TransactionResponse;
 import com.financetracker.entity.*;
 import com.financetracker.exception.ResourceNotFoundException;
 import com.financetracker.repository.*;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 @Service
+@RequiredArgsConstructor
 public class TransactionService {
 
     @Autowired

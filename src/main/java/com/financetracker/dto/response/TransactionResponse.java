@@ -2,12 +2,13 @@ package com.financetracker.dto.response;
 
 import lombok.Data;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
-public class TransactionResponse {
+public class TransactionResponse implements Serializable {
     private Long id;
     private String accountName;
     private String categoryName;

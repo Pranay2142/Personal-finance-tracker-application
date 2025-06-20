@@ -4,12 +4,13 @@ import com.financetracker.entity.FinancialGoal.GoalPriority;
 import com.financetracker.entity.FinancialGoal.GoalStatus;
 import lombok.Data;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
-public class GoalResponse {
+public class GoalResponse implements Serializable {
     private Long id;
     private String name;
     private String description;

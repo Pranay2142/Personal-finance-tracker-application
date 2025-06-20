@@ -11,7 +11,7 @@ import java.time.LocalDate;
 @Data
 public class RecurringTransactionRequest {
 
-    @NotNull
+
     private Long userId;
 
     @NotNull

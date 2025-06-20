@@ -11,6 +11,8 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -22,7 +24,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -76,22 +78,33 @@ public class AuthController {
         }
     }
 
+
+
+    @Caching(evict = {
+            @CacheEvict(value = "existsByUsername", key = "#registerRequest.username"),
+            @CacheEvict(value = "existsByEmail", key = "#registerRequest.email")
+    })
     @PostMapping("/register")
     @Operation(summary = "User registration", description = "Register a new user")
     public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequest registerRequest) {
         Map<String, Object> response = new HashMap<>();
 
+        logger.info("Checking if username '{}' exists in DB or cache", registerRequest.getUsername());
         if (userRepository.existsByUsername(registerRequest.getUsername())) {
+            logger.info("Username '{}' already exists", registerRequest.getUsername());
             response.put("error", "Username is already taken!");
             return ResponseEntity.badRequest().body(response);
         }
 
+        logger.info("Checking if email '{}' exists in DB or cache", registerRequest.getEmail());
         if (userRepository.existsByEmail(registerRequest.getEmail())) {
+            logger.info("Email '{}' already exists", registerRequest.getEmail());
             response.put("error", "Email address is already in use!");
             return ResponseEntity.badRequest().body(response);
         }
 
-        // Create new user account
+        logger.info("Creating new user with username: {}", registerRequest.getUsername());
+
         User user = new User(
                 registerRequest.getUsername(),
                 registerRequest.getEmail(),
@@ -104,9 +117,12 @@ public class AuthController {
 
         userRepository.save(user);
 
+        logger.info("User '{}' registered successfully", registerRequest.getUsername());
+
         response.put("message", "User registered successfully!");
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+
 
     @Operation(summary = "Refresh JWT token", description = "Provide a valid token to refresh and receive a new token")
     @PostMapping("/refresh")

@@ -4,12 +4,13 @@ import com.financetracker.entity.Category.TransactionType;
 import com.financetracker.entity.RecurringTransaction;
 import lombok.Data;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
-public class RecurringTransactionResponse {
+public class RecurringTransactionResponse implements Serializable {
     private Long id;
     private Long userId;
     private Long accountId;

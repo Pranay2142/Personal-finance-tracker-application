@@ -24,10 +24,9 @@ public class CategoryController {
 
     @GetMapping
     @Operation(summary = "List categories", description = "Get all categories for current user")
-    public ResponseEntity<List<CategoryResponse>> getAll(
-            @AuthenticationPrincipal UserDetailsImpl currentUser) {
-
-        List<CategoryResponse> list = categoryService.listCategories(currentUser.getUser());
+    public ResponseEntity<List<CategoryResponse>> getAll(@AuthenticationPrincipal UserDetailsImpl currentUser) {
+        Long userId = currentUser.getUser().getId();  // Just get ID
+        List<CategoryResponse> list = categoryService.listCategoriesByUserId(userId);
         return ResponseEntity.ok(list);
     }
 

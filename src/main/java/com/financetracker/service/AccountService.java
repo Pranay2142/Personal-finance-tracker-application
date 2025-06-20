@@ -15,20 +15,21 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class AccountService {
 
+    private final AccountRepository accountRepository;
+    private final UserRepository userRepository;
+    // Programmatic cache eviction method
     @Autowired
-    private AccountRepository accountRepository;
+    private org.springframework.cache.CacheManager cacheManager;
 
-    @Autowired
-    private UserRepository userRepository;
-
-    // Cache the list of accounts per user
     @Cacheable(value = "accountsByUser", key = "#userId")
     public List<AccountResponse> getAllAccountsByUser(Long userId) {
+        System.err.println("🔄 Fetching from DB for userId = " + userId);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         return accountRepository.findByUser(user)
@@ -37,7 +38,6 @@ public class AccountService {
                 .collect(Collectors.toList());
     }
 
-    // Cache individual account details by accountId
     @Cacheable(value = "accountById", key = "#accountId")
     public AccountResponse getAccountById(Long accountId) {
         Account account = accountRepository.findById(accountId)
@@ -45,7 +45,6 @@ public class AccountService {
         return mapToResponse(account);
     }
 
-    // On create, evict the accounts list cache for the user so it reloads next time
     @CacheEvict(value = "accountsByUser", key = "#userId")
     public AccountResponse createAccount(Long userId, AccountRequest request) {
         User user = userRepository.findById(userId)
@@ -63,14 +62,11 @@ public class AccountService {
         return mapToResponse(saved);
     }
 
-    // On update, evict cache for this account and user's accounts list
-    @Caching(evict = {
-            @CacheEvict(value = "accountById", key = "#accountId"),
-            @CacheEvict(value = "accountsByUser", key = "#accountRepository.findById(#accountId).get().getUser().getId()")
-    })
+    // Here we remove CacheEvict annotation and evict programmatically
     public AccountResponse updateAccount(Long accountId, AccountRequest request) {
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+        Long userId = account.getUser().getId();
 
         account.setName(request.getName());
         account.setType(request.getType());
@@ -79,18 +75,28 @@ public class AccountService {
         account.setIsActive(request.getIsActive());
 
         Account updated = accountRepository.save(account);
+
+        // Programmatic cache eviction
+        evictCaches(accountId, userId);
+
         return mapToResponse(updated);
     }
 
-    // On delete, evict cache for this account and user's accounts list
-    @Caching(evict = {
-            @CacheEvict(value = "accountById", key = "#accountId"),
-            @CacheEvict(value = "accountsByUser", key = "#accountRepository.findById(#accountId).get().getUser().getId()")
-    })
+    private void evictCaches(Long accountId, Long userId) {
+        Objects.requireNonNull(cacheManager.getCache("accountById")).evict(accountId);
+        Objects.requireNonNull(cacheManager.getCache("accountsByUser")).evict(userId);
+    }
+
+    // Same here: remove CacheEvict annotations and evict programmatically
     public void deleteAccount(Long accountId) {
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+        Long userId = account.getUser().getId();
+
         accountRepository.delete(account);
+
+        // Evict caches after delete
+        evictCaches(accountId, userId);
     }
 
     private AccountResponse mapToResponse(Account account) {
@@ -106,4 +112,5 @@ public class AccountService {
         return response;
     }
 }
+
 

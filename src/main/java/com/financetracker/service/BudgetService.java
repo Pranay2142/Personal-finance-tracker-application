@@ -3,18 +3,20 @@ package com.financetracker.service;
 import com.financetracker.dto.request.BudgetRequest;
 import com.financetracker.dto.response.BudgetSummaryResponse;
 import com.financetracker.entity.*;
-import com.financetracker.exception.*;
+import com.financetracker.exception.ResourceNotFoundException;
 import com.financetracker.repository.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 public class BudgetService {
@@ -22,6 +24,8 @@ public class BudgetService {
     private final BudgetRepository budgetRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
+
+    private final CacheManager cacheManager;
 
     @Transactional(readOnly = true)
     @Cacheable(value = "budgetsByUser", key = "#user.id")
@@ -39,7 +43,6 @@ public class BudgetService {
     }
 
     @Transactional
-    @CacheEvict(value = "budgetsByUser", key = "#user.id")
     public BudgetSummaryResponse createBudget(BudgetRequest req, User user) {
         Category cat = categoryRepository.findById(req.getCategoryId())
                 .filter(c -> c.getUser().getId().equals(user.getId()))
@@ -56,14 +59,14 @@ public class BudgetService {
         budget.setIsActive(true);
 
         Budget saved = budgetRepository.save(budget);
+
+        // 🔄 Evict budget list cache for the user
+        evictBudgetsByUser(user.getId());
+
         return mapToSummary(saved, user);
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = "budgetsByUser", key = "#user.id"),
-            @CacheEvict(value = "budgetProgress", key = "#id")
-    })
     public BudgetSummaryResponse updateBudget(Long id, BudgetRequest req, User user) {
         Budget budget = findActiveBudgetById(id, user);
 
@@ -79,15 +82,23 @@ public class BudgetService {
         budget.setEndDate(req.getEndDate());
 
         Budget updated = budgetRepository.save(budget);
+
+        // 🔄 Evict both caches: individual progress and user budget list
+        evictBudgetProgress(id);
+        evictBudgetsByUser(user.getId());
+
         return mapToSummary(updated, user);
     }
 
     @Transactional
-    @CacheEvict(value = "budgetsByUser", key = "#user.id")
     public void deleteBudget(Long id, User user) {
         Budget budget = findActiveBudgetById(id, user);
         budget.setIsActive(false);
         budgetRepository.save(budget);
+
+        // 🔄 Evict caches after deletion
+        evictBudgetProgress(id);
+        evictBudgetsByUser(user.getId());
     }
 
     private BudgetSummaryResponse mapToSummary(Budget b, User user) {
@@ -115,5 +126,14 @@ public class BudgetService {
         return budgetRepository.findById(id)
                 .filter(b -> b.getUser().getId().equals(user.getId()) && b.getIsActive())
                 .orElseThrow(() -> new ResourceNotFoundException("Budget not found"));
+    }
+
+    // ✅ Programmatic Cache Eviction Methods
+    private void evictBudgetsByUser(Long userId) {
+        Objects.requireNonNull(cacheManager.getCache("budgetsByUser")).evict(userId);
+    }
+
+    private void evictBudgetProgress(Long budgetId) {
+        Objects.requireNonNull(cacheManager.getCache("budgetProgress")).evict(budgetId);
     }
 }

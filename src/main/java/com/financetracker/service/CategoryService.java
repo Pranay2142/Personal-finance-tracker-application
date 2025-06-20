@@ -7,29 +7,40 @@ import com.financetracker.entity.User;
 import com.financetracker.exception.BusinessLogicException;
 import com.financetracker.exception.ResourceNotFoundException;
 import com.financetracker.repository.CategoryRepository;
+import com.financetracker.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 public class CategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final UserRepository userRepository;
 
-    // Cache categories list per user
-    @Cacheable(value = "categoriesByUser", key = "#user.id")
-    public List<CategoryResponse> listCategories(User user) {
+    @Autowired
+    private CacheManager cacheManager;
+
+    @Transactional(readOnly = true)
+    @Cacheable(value = "categoriesByUser", key = "#userId")
+    public List<CategoryResponse> listCategoriesByUserId(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        System.err.println("🔄 Fetching from DB for Categories for userId=" + userId);
         return categoryRepository.findByUser(user).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
-    // Evict categories list cache after creating a new category
-    @CacheEvict(value = "categoriesByUser", key = "#user.id")
+
     public CategoryResponse createCategory(CategoryRequest req, User user) {
         if (categoryRepository.existsByUserAndNameAndType(user, req.getName(), req.getType())) {
             throw new BusinessLogicException("Category already exists");
@@ -43,11 +54,14 @@ public class CategoryService {
         cat.setIcon(req.getIcon());
         cat.setIsActive(true);
 
-        return toResponse(categoryRepository.save(cat));
+        Category saved = categoryRepository.save(cat);
+
+        // Evict cache programmatically after creation
+        evictCategoriesByUser(user.getId());
+
+        return toResponse(saved);
     }
 
-    // Evict categories list cache after updating a category
-    @CacheEvict(value = "categoriesByUser", key = "#user.id")
     public CategoryResponse updateCategory(Long id, CategoryRequest req, User user) {
         Category cat = categoryRepository.findById(id)
                 .filter(c -> c.getUser().getId().equals(user.getId()))
@@ -64,11 +78,14 @@ public class CategoryService {
         cat.setColor(req.getColor());
         cat.setIcon(req.getIcon());
 
-        return toResponse(categoryRepository.save(cat));
+        Category updated = categoryRepository.save(cat);
+
+        // Evict cache programmatically after update
+        evictCategoriesByUser(user.getId());
+
+        return toResponse(updated);
     }
 
-    // Evict categories list cache after soft deleting a category
-    @CacheEvict(value = "categoriesByUser", key = "#user.id")
     public void deleteCategory(Long id, User user) {
         Category cat = categoryRepository.findById(id)
                 .filter(c -> c.getUser().getId().equals(user.getId()))
@@ -76,6 +93,13 @@ public class CategoryService {
 
         cat.setIsActive(false);
         categoryRepository.save(cat);
+
+        // Evict cache programmatically after delete
+        evictCategoriesByUser(user.getId());
+    }
+
+    private void evictCategoriesByUser(Long userId) {
+        Objects.requireNonNull(cacheManager.getCache("categoriesByUser")).evict(userId);
     }
 
     private CategoryResponse toResponse(Category cat) {
@@ -90,4 +114,3 @@ public class CategoryService {
         return resp;
     }
 }
-

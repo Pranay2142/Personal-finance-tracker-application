@@ -6,13 +6,16 @@ import com.financetracker.entity.*;
 import com.financetracker.exception.ResourceNotFoundException;
 import com.financetracker.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 public class RecurringTransactionService {
@@ -22,20 +25,24 @@ public class RecurringTransactionService {
     private final AccountRepository accountRepository;
     private final CategoryRepository categoryRepository;
 
+    @Autowired
+    private CacheManager cacheManager;
+
     // Cache active recurring transactions per userId
     @Transactional(readOnly = true)
     @Cacheable(value = "activeRecurringTransactionsByUser", key = "#userId")
     public List<RecurringTransactionResponse> getActiveRecurringTransactionsByUser(Long userId) {
+        System.err.println("🔄 Fetching from DB for RecurringTransaction for userId=" + userId);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
         return recurringTransactionRepository.findByUserAndIsActiveTrue(user).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
-    // Evict cache after creating a new recurring transaction for that user
+    // Programmatic eviction after creating a recurring transaction
     @Transactional
-    @CacheEvict(value = "activeRecurringTransactionsByUser", key = "#req.userId")
     public RecurringTransactionResponse createRecurringTransaction(RecurringTransactionRequest req) {
         User user = userRepository.findById(req.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -59,12 +66,13 @@ public class RecurringTransactionService {
 
         recurringTransactionRepository.save(rt);
 
+        evictRecurringTransactionCache(user.getId());
+
         return toResponse(rt);
     }
 
-    // Evict cache after updating a recurring transaction (use userId from updated entity)
+    // Programmatic eviction after updating a recurring transaction
     @Transactional
-    @CacheEvict(value = "activeRecurringTransactionsByUser", key = "#req.userId")
     public RecurringTransactionResponse updateRecurringTransaction(Long id, RecurringTransactionRequest req) {
         RecurringTransaction rt = recurringTransactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Recurring transaction not found"));
@@ -90,17 +98,25 @@ public class RecurringTransactionService {
 
         recurringTransactionRepository.save(rt);
 
+        evictRecurringTransactionCache(user.getId());
+
         return toResponse(rt);
     }
 
-    // Evict cache after deleting a recurring transaction (use userId of deleted entity)
+    // Programmatic eviction after deleting a recurring transaction
     @Transactional
-    @CacheEvict(value = "activeRecurringTransactionsByUser", key = "#result")
     public void deleteRecurringTransaction(Long id) {
         RecurringTransaction rt = recurringTransactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Recurring transaction not found"));
         Long userId = rt.getUser().getId();
+
         recurringTransactionRepository.delete(rt);
+
+        evictRecurringTransactionCache(userId);
+    }
+
+    private void evictRecurringTransactionCache(Long userId) {
+        Objects.requireNonNull(cacheManager.getCache("activeRecurringTransactionsByUser")).evict(userId);
     }
 
     private RecurringTransactionResponse toResponse(RecurringTransaction rt) {
@@ -122,4 +138,3 @@ public class RecurringTransactionService {
         return resp;
     }
 }
-
